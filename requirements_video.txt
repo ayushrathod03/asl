@@ -1,0 +1,13 @@
+accelerator
+diffusers
+datasets
+torch
+torchvision
+pillow
+fvd
+transformers
+huggingface_hub
+peft
+wandb
+numpy
+torchmetrics
