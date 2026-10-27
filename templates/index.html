@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time American Sign Language recognition powered by client-side MediaPipe and KNN with instant word autocomplete, smooth typing buffer, and text-to-speech.">
+    <meta name="theme-color" content="#0a0e1a">
+    <title>ASL Sign Predictor & Word Autocompleter | Real-Time AI Sign Language</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Vanilla Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- MediaPipe Hands & Camera Utils CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <div class="app-wrapper">
+        <!-- Top Navigation Bar -->
+        <header class="app-header">
+            <div class="brand-group">
+                <div class="brand-icon">🤟</div>
+                <div>
+                    <h1 class="brand-title">ASL Sign Predictor <span class="gradient-text">& Autocompleter</span></h1>
+                    <p class="brand-subtitle">Real-Time In-Browser Hand Landmark Recognition & Predictive Text</p>
+                </div>
+            </div>
+
+            <div class="header-pills">
+                <div class="status-pill online" id="model-status-pill">
+                    <span class="status-dot"></span>
+                    <span id="model-status-text">KNN Model Ready</span>
+                </div>
+                <div class="status-pill info">
+                    <span class="pill-icon">📚</span>
+                    <span id="vocab-count-text">370k Words</span>
+                </div>
+                <div class="status-pill performance">
+                    <span class="pill-icon">⚡</span>
+                    <span id="fps-counter">0 FPS</span>
+                </div>
+                <button class="icon-button" id="toggle-guide-btn" title="View ASL Alphabet Reference Guide">
+                    <span class="btn-icon">📖</span>
+                    <span>Sign Chart</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace Grid -->
+        <main class="main-content-grid">
+            <!-- Left Column: Camera Feed & Tracking HUD -->
+            <section class="vision-card glass-panel" aria-label="Camera and Sign Recognition">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <span class="panel-icon">📹</span>
+                        <h2>Live Vision Stream</h2>
+                    </div>
+                    <div class="hud-badges">
+                        <span class="badge" id="tracking-badge">Waiting for camera</span>
+                        <span class="badge mode-badge" id="engine-badge">Client MediaPipe (Ultra-Fast)</span>
+                    </div>
+                </div>
+
+                <!-- Video Viewport Container -->
+                <div class="video-container" id="video-container">
+                    <video id="webcam-video" playsinline muted></video>
+                    <canvas id="skeleton-canvas"></canvas>
+
+                    <!-- Overlay Placeholder when camera is off -->
+                    <div class="camera-placeholder" id="camera-placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <h3>Camera is Currently Off</h3>
+                        <p>Click "Start Camera" below to begin real-time ASL sign prediction.</p>
+                        <button class="primary-btn glow-btn" id="start-cam-placeholder-btn">
+                            <span>▶ Start Camera</span>
+                        </button>
+                    </div>
+
+                    <!-- HUD Scanning Target Box -->
+                    <div class="hud-guideline" id="hud-guideline">
+                        <div class="corner top-left"></div>
+                        <div class="corner top-right"></div>
+                        <div class="corner bottom-left"></div>
+                        <div class="corner bottom-right"></div>
+                    </div>
+                </div>
+
+                <!-- Camera Controls & Settings Bar -->
+                <div class="camera-controls-bar">
+                    <div class="btn-group-left">
+                        <button class="btn primary-btn" id="toggle-camera-btn">
+                            <span id="toggle-camera-icon">▶</span>
+                            <span id="toggle-camera-text">Start Camera</span>
+                        </button>
+                        <button class="btn secondary-btn" id="flip-camera-btn" title="Flip camera horizontally">
+                            <span>🔄 Flip View</span>
+                        </button>
+                    </div>
+
+                    <div class="mode-selector">
+                        <label for="detection-mode-select" class="control-label">Pipeline:</label>
+                        <select id="detection-mode-select" class="glass-select">
+                            <option value="client" selected>Client-side (0 ms GPU)</option>
+                            <option value="server">Server Fallback (OpenCV)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Multi-Hand Prediction Cards -->
+                <div class="hand-predictions-container">
+                    <!-- Hand 1 Card -->
+                    <div class="hand-card glass-subpanel" id="hand-1-card">
+                        <div class="hand-card-header">
+                            <span class="hand-identity" id="hand-1-identity">Hand 1</span>
+                            <span class="hand-confidence" id="hand-1-confidence">--%</span>
+                        </div>
+                        <div class="hand-letter-display" id="hand-1-letter">-</div>
+                        <div class="confidence-bar-bg">
+                            <div class="confidence-bar-fill" id="hand-1-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Hand 2 Card -->
+                    <div class="hand-card glass-subpanel" id="hand-2-card">
+                        <div class="hand-card-header">
+                            <span class="hand-identity" id="hand-2-identity">Hand 2</span>
+                            <span class="hand-confidence" id="hand-2-confidence">--%</span>
+                        </div>
+                        <div class="hand-letter-display" id="hand-2-letter">-</div>
+                        <div class="confidence-bar-bg">
+                            <div class="confidence-bar-fill" id="hand-2-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Text Workspace, Smoothing & Autocomplete -->
+            <section class="text-workspace-card glass-panel" aria-label="Text Workspace and Autocomplete">
+                <div class="panel-header">
+                    <div class="panel-title-group">
+                        <span class="panel-icon">✍️</span>
+                        <h2>Interactive Workspace</h2>
+                    </div>
+                    <div class="stats-counter">
+                        <span id="char-count">0 chars</span> • <span id="word-count">0 words</span>
+                    </div>
+                </div>
+
+                <!-- Live Consensus & Stability Progress Bar -->
+                <div class="consensus-tracker-bar" title="Smoothing filter consensus before letter locks in">
+                    <div class="consensus-label">
+                        <span>Gesture Stability Lock</span>
+                        <span id="consensus-percent">0%</span>
+                    </div>
+                    <div class="consensus-progress-track">
+                        <div class="consensus-progress-fill" id="consensus-progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Primary Typed Display Box -->
+                <div class="typed-box-wrapper">
+                    <div class="typed-box" id="typed-output-display" tabindex="0" role="textbox" aria-label="Typed text output" aria-live="polite">
+                        <span id="typed-text-content"></span><span class="blinking-cursor">|</span>
+                    </div>
+                </div>
+
+                <!-- Action Toolbar Buttons -->
+                <div class="actions-toolbar">
+                    <button class="action-btn space-btn" id="btn-space" title="Add a Space (Spacebar)">
+                        <span class="btn-key">␣</span>
+                        <span>Space</span>
+                    </button>
+                    <button class="action-btn backspace-btn" id="btn-backspace" title="Delete Last Character (Backspace)">
+                        <span class="btn-key">⌫</span>
+                        <span>Backspace</span>
+                    </button>
+                    <button class="action-btn clear-btn" id="btn-clear" title="Clear all text (Esc)">
+                        <span class="btn-key">✕</span>
+                        <span>Clear</span>
+                    </button>
+                    <button class="action-btn speak-btn glow-purple" id="btn-speak" title="Speak Aloud via Text-to-Speech">
+                        <span class="btn-key">🔊</span>
+                        <span>Speak</span>
+                    </button>
+                    <button class="action-btn copy-btn" id="btn-copy" title="Copy to Clipboard">
+                        <span class="btn-key">📋</span>
+                        <span>Copy</span>
+                    </button>
+                </div>
+
+                <!-- Smart Word Autocomplete Suggestions -->
+                <div class="autocomplete-section">
+                    <div class="autocomplete-header">
+                        <div class="autocomplete-title">
+                            <span class="sparkle-icon">✨</span>
+                            <h3>Smart Autocomplete Suggestions</h3>
+                        </div>
+                        <span class="autocomplete-hint">Click a word or press keys [1-6]</span>
+                    </div>
+
+                    <div class="suggestions-grid" id="suggestions-container">
+                        <div class="suggestion-placeholder">
+                            <span>Sign or type letters to see real-time suggestions from 370k+ words</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Application Instructions & Keyboard Shortcuts Card -->
+                <div class="tips-card glass-subpanel">
+                    <div class="tips-title">💡 Quick Tips & Shortcuts:</div>
+                    <ul class="tips-list">
+                        <li><strong>Hold hand still for ~0.8s:</strong> The sliding window buffer locks in the letter automatically.</li>
+                        <li><strong>Click any suggestion chip</strong> or tap keyboard number <strong>1–6</strong> to instantly autocomplete.</li>
+                        <li><strong>Click 🔊 Speak</strong> to listen to the generated sentence with native browser speech synthesis.</li>
+                    </ul>
+                </div>
+            </section>
+        </main>
+
+        <!-- ASL Chart Modal Reference -->
+        <div class="modal-backdrop" id="chart-modal-backdrop" aria-hidden="true">
+            <div class="modal-dialog glass-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modal-title">🤟 ASL Alphabet Quick Reference (A - Z)</h2>
+                    <button class="close-modal-btn" id="close-modal-btn" aria-label="Close modal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-subtitle">Hold your hand upright towards the webcam inside the bounding guide. Make sure your fingers are clearly visible with good lighting.</p>
+                    <div class="asl-alphabet-grid" id="asl-alphabet-grid">
+                        <!-- Populated with alphabet letters A-Z -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification Container -->
+        <div class="toast-container" id="toast-container"></div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
