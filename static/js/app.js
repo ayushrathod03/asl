@@ -74,7 +74,7 @@ function initMediaPipe() {
             });
 
             state.handsDetector.setOptions({
-                maxNumHands: 2,
+                maxNumHands: 1,
                 modelComplexity: 1,
                 minDetectionConfidence: 0.45,
                 minTrackingConfidence: 0.45
@@ -233,15 +233,15 @@ async function onMediaPipeResults(results) {
 
     const handsPayload = [];
 
-    // Draw and prepare landmarks for each hand
-    for (let hIdx = 0; hIdx < results.multiHandLandmarks.length; hIdx++) {
-        const rawLandmarks = results.multiHandLandmarks[hIdx];
-        const handedness = (results.multiHandedness && results.multiHandedness[hIdx])
-            ? results.multiHandedness[hIdx].label
-            : `Hand ${hIdx + 1}`;
+    // Draw and prepare landmarks for at most 1 hand
+    if (results.multiHandLandmarks.length > 0) {
+        const rawLandmarks = results.multiHandLandmarks[0];
+        const handedness = (results.multiHandedness && results.multiHandedness[0])
+            ? results.multiHandedness[0].label
+            : 'Hand';
 
         // Draw styled neon skeleton
-        drawHandSkeleton(ctx, rawLandmarks, width, height, hIdx);
+        drawHandSkeleton(ctx, rawLandmarks, width, height, 0);
 
         // Extract normalized 63-dim array
         const normalizedVector = extractNormalizedVector(rawLandmarks);
@@ -396,35 +396,25 @@ function handlePredictionResults(predictions) {
         return;
     }
 
-    // Update Hand Cards UI
-    for (let i = 0; i < 2; i++) {
-        const card = document.getElementById(`hand-${i+1}-card`);
-        const letterElem = document.getElementById(`hand-${i+1}-letter`);
-        const confElem = document.getElementById(`hand-${i+1}-confidence`);
-        const barElem = document.getElementById(`hand-${i+1}-bar`);
-        const identityElem = document.getElementById(`hand-${i+1}-identity`);
+    // Update Single Hand Card UI
+    const card = document.getElementById('hand-1-card');
+    const letterElem = document.getElementById('hand-1-letter');
+    const confElem = document.getElementById('hand-1-confidence');
+    const barElem = document.getElementById('hand-1-bar');
+    const identityElem = document.getElementById('hand-1-identity');
 
-        if (i < predictions.length) {
-            const pred = predictions[i];
-            const confPct = Math.round(pred.confidence * 100);
-
-            card.classList.add('active');
-            letterElem.textContent = pred.label.toUpperCase();
-            confElem.textContent = `${confPct}%`;
-            barElem.style.width = `${confPct}%`;
-            identityElem.textContent = pred.handedness || `Hand ${i+1}`;
-        } else {
-            card.classList.remove('active');
-            letterElem.textContent = '-';
-            confElem.textContent = '--%';
-            barElem.style.width = '0%';
-        }
-    }
-
-    // Use primary hand (first hand detected) for typing buffer
     const primaryPred = predictions[0];
-    if (primaryPred && primaryPred.label && primaryPred.label !== 'unknown') {
-        feedPredictionIntoBuffer(primaryPred.label);
+    if (primaryPred && card) {
+        const confPct = Math.round(primaryPred.confidence * 100);
+        card.classList.add('active');
+        letterElem.textContent = primaryPred.label.toUpperCase();
+        confElem.textContent = `${confPct}%`;
+        barElem.style.width = `${confPct}%`;
+        identityElem.textContent = primaryPred.handedness ? `${primaryPred.handedness} Hand` : 'Detected Hand';
+
+        if (primaryPred.label && primaryPred.label !== 'unknown') {
+            feedPredictionIntoBuffer(primaryPred.label);
+        }
     }
 }
 
@@ -493,14 +483,12 @@ function handleNoHandsDetected() {
 }
 
 function resetHandCards() {
-    for (let i = 1; i <= 2; i++) {
-        const card = document.getElementById(`hand-${i}-card`);
-        if (card) {
-            card.classList.remove('active');
-            document.getElementById(`hand-${i}-letter`).textContent = '-';
-            document.getElementById(`hand-${i}-confidence`).textContent = '--%';
-            document.getElementById(`hand-${i}-bar`).style.width = '0%';
-        }
+    const card = document.getElementById('hand-1-card');
+    if (card) {
+        card.classList.remove('active');
+        document.getElementById('hand-1-letter').textContent = '-';
+        document.getElementById('hand-1-confidence').textContent = '--%';
+        document.getElementById('hand-1-bar').style.width = '0%';
     }
 }
 

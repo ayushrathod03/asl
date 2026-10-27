@@ -468,9 +468,13 @@ body {
 /* Hand Prediction Cards */
 .hand-predictions-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 16px;
     margin-top: 18px;
+}
+
+.hand-predictions-container.single-hand .hand-card {
+    padding: 18px 24px;
 }
 
 .hand-card {

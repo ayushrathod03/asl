@@ -59,7 +59,7 @@ try:
     mp_hands = mp.solutions.hands
     server_hands_detector = mp_hands.Hands(
         static_image_mode=False,
-        max_num_hands=2,
+        max_num_hands=1,
         min_detection_confidence=0.4,
         min_tracking_confidence=0.4
     )
@@ -143,7 +143,7 @@ def api_predict():
     if not payload or "hands" not in payload:
         return jsonify({"success": False, "error": "Missing 'hands' in request payload"}), 400
 
-    hands_data = payload.get("hands", [])
+    hands_data = payload.get("hands", [])[:1]  # Limit to max 1 hand
     if not hands_data:
         return jsonify({"success": True, "predictions": []})
 
@@ -258,7 +258,7 @@ def api_predict_frame():
         landmarks_output = []
 
         if detection_results.multi_hand_landmarks:
-            for idx, lm in enumerate(detection_results.multi_hand_landmarks):
+            for idx, lm in enumerate(detection_results.multi_hand_landmarks[:1]):  # Limit to 1 hand
                 raw_pts = []
                 for p in lm.landmark:
                     raw_pts.extend([p.x, p.y, p.z])
